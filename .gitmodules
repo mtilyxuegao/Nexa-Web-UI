@@ -1,0 +1,6 @@
+[submodule "nexa-sdk"]
+	path = nexa-sdk
+	url = https://github.com/NexaAI/nexa-sdk.git
+[submodule "web-ui"]
+	path = web-ui
+	url = https://github.com/browser-use/web-ui.git
