@@ -48,17 +48,21 @@ NEXA_ENDPOINT=http://127.0.0.1:8080/v1
 
 ### 4. 下载模型
 
-设置 Hugging Face 令牌并下载模型：
+设置 Hugging Face 令牌并下载模型（该模型为 Private 模型，需要 HF Token）：
 
 ```bash
-# 设置 HF 令牌
-export HF_TOKEN=your_huggingface_token
+# 设置 Hugging Face 令牌（需要两个环境变量）
+export HUGGINGFACE_HUB_TOKEN="your_huggingface_token"
+export NEXA_HFTOKEN="your_huggingface_token"
 
 # 下载多模态 VLM 模型
 nexa pull NexaAI/Qwen3-VL-4B-MLX-8bit
 ```
 
-**注意**：该模型约 4GB，确保有足够的存储空间和网络带宽。
+**注意**：
+- 该模型为 Private 模型，需要有效的 Hugging Face Token
+- 模型约 4GB，确保有足够的存储空间和网络带宽
+- 确保您的 HF Token 有访问该模型的权限
 
 ## 测试准备
 
