@@ -42,18 +42,21 @@ python web-ui/webui.py --ip 127.0.0.1 --port 7788
 
 访问 http://127.0.0.1:7788 进行测试：
 
-### 测试任务 1: 基本导航（应该成功）
-- 输入任务：`Go to google.com`
-- 预期结果：✅ 成功导航到 Google 首页
+### 完整测试任务（三步骤）
+输入任务：`Go to google.com, search for 'nexa ai', and click the first result`
 
-### 测试任务 2: 搜索功能（应该成功）
-- 输入任务：`Go to google.com and search for 'nexa ai'`
-- 预期结果：✅ 成功打开 Google 并执行搜索
+**步骤 1: 导航到 Google（应该成功）**
+- 动作：导航到 google.com
+- 预期结果：✅ 成功打开 Google 首页
 
-### 测试任务 3: 点击操作（目前失败）
-- 输入任务：`Go to google.com, search for 'nexa ai', and click the first result`
-- 预期结果：❌ 前两步成功，但点击第一个搜索结果失败
-- 现象：Agent 会不断重试，但 `Action 1/1: {}` 显示为空
+**步骤 2: 执行搜索（应该成功）**  
+- 动作：在搜索框输入 'nexa ai' 并搜索
+- 预期结果：✅ 成功显示搜索结果页面
+
+**步骤 3: 点击第一个结果（目前失败）**
+- 动作：点击第一个搜索结果
+- 预期结果：❌ 失败，无法执行点击操作
+- 现象：Agent 会不断重试，但 `Action 1/1: {}` 显示为空，基于之前的记忆继续尝试
 
 ## 当前问题分析
 
