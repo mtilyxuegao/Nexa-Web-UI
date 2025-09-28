@@ -103,7 +103,8 @@ pkill -f "webui.py"
 ### 1. Start Nexa Server
 
 ```bash
-cd /Users/jason/Desktop/Nexa-Web-UI
+# Navigate to project root directory
+cd Nexa-Web-UI
 nexa serve --host 127.0.0.1:8080 --keepalive 600
 ```
 
@@ -114,8 +115,9 @@ Wait until you see the `Localhosting on http://127.0.0.1:8080/docs/ui` message.
 In a new terminal window:
 
 ```bash
-cd /Users/jason/Desktop/Nexa-Web-UI
-source .venv/bin/activate  # or conda activate nexa-webui
+# Navigate to project root directory
+cd Nexa-Web-UI
+source web-ui/.venv/bin/activate  # or conda activate nexa-webui
 python web-ui/webui.py --ip 127.0.0.1 --port 7788
 ```
 
@@ -248,12 +250,6 @@ tail -f nexa_server.log
 
 # View Web-UI logs (console output)
 # Focus on [src.utils.nexa_adapter] output
-```
-
-### Check Saved Images
-```bash
-ls -la /Users/jason/Desktop/Nexa-Web-UI/debug_images/
-# View actual image content received by LLM
 ```
 
 ### Verify JSON Fixes
