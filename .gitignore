@@ -33,6 +33,7 @@ MANIFEST
 
 # Virtual environments
 .env
+!web-ui/.env  # 允许这个特定的预配置 .env 文件
 .venv
 env/
 venv/

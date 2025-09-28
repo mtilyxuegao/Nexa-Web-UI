@@ -4,6 +4,62 @@
 
 本项目集成了 Nexa SDK 与 Web-UI，实现本地多模态 LLM 驱动的浏览器自动化。目前使用 `NexaAI/Qwen3-VL-4B-MLX-8bit` 模型进行测试。
 
+## 环境配置
+
+### 1. 安装 Nexa SDK
+
+从官方 GitHub 仓库下载安装包：
+
+前往 https://github.com/NexaAI/nexa-sdk/releases/tag/v0.2.35 根据您的平台下载对应的安装包并安装。
+
+### 2. 安装 Web-UI 依赖
+
+基于 [browser-use/web-ui](https://github.com/browser-use/web-ui) 项目，安装所需依赖：
+
+```bash
+# 进入 web-ui 目录
+cd web-ui
+
+# 使用 uv 创建虚拟环境（推荐）
+uv venv --python 3.11
+source .venv/bin/activate  # macOS/Linux
+# 或 .\.venv\Scripts\Activate.ps1  # Windows PowerShell
+
+# 安装 Python 依赖
+uv pip install -r requirements.txt
+
+# 安装 Playwright 浏览器（推荐仅安装 Chromium）
+playwright install chromium --with-deps
+```
+
+### 3. 配置环境变量
+
+项目已包含预配置的 `web-ui/.env` 文件，主要配置如下：
+
+```bash
+# LLM 提供商设置
+DEFAULT_LLM=nexa
+NEXA_ENDPOINT=http://127.0.0.1:8080/v1
+
+# 其他 API 密钥（如需使用其他 LLM）
+# OPENAI_API_KEY=your_openai_key
+# ANTHROPIC_API_KEY=your_anthropic_key
+```
+
+### 4. 下载模型
+
+设置 Hugging Face 令牌并下载模型：
+
+```bash
+# 设置 HF 令牌
+export HF_TOKEN=your_huggingface_token
+
+# 下载多模态 VLM 模型
+nexa pull NexaAI/Qwen3-VL-4B-MLX-8bit
+```
+
+**注意**：该模型约 4GB，确保有足够的存储空间和网络带宽。
+
 ## 测试准备
 
 ### 0. 清理端口
