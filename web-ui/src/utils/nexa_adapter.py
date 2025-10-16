@@ -1,6 +1,6 @@
 """
 Nexa AI LLM Adapter for Web-UI
-专门处理 Nexa SDK 的 LLM 集成，支持多模态内容转换
+Handles Nexa SDK integration with LangChain, supporting multimodal content conversion
 """
 
 import requests
@@ -25,48 +25,46 @@ logger = logging.getLogger(__name__)
 
 class NexaChatLLM(ChatOpenAI):
     """
-    Nexa AI 聊天模型适配器
-    继承自 ChatOpenAI，重写所有调用方法来拦截多模态请求并转换 base64 图片
+    Nexa AI Chat Model Adapter
+    Extends ChatOpenAI to intercept multimodal requests and convert base64 images to file paths
     """
     
-    nexa_base_url: str = Field(description="Nexa API 基础URL")
-    nexa_model: str = Field(description="Nexa 模型名称")
+    nexa_base_url: str = Field(description="Nexa API base URL")
+    nexa_model: str = Field(description="Nexa model name")
     temp_dir: str = Field(default_factory=lambda: tempfile.mkdtemp(prefix="nexa_images_"))
     
     def __init__(self, model: str, base_url: str, temperature: float = 0.0, **kwargs):
-        # 初始化父类，但使用虚假的 API key 因为 Nexa 不需要
+        # Initialize parent class with dummy API key (Nexa doesn't require one)
         super().__init__(
             model=model,
             base_url=base_url,
-            api_key="not-required",  # Nexa 不需要 API key
+            api_key="not-required",  # Nexa doesn't need API key
             temperature=temperature,
             nexa_base_url=base_url.rstrip('/'),
             nexa_model=model,
             **kwargs
         )
         
-        # 创建临时目录用于存储转换的图片
+        # Create temp directory for storing converted images
         os.makedirs(self.temp_dir, exist_ok=True)
-        logger.info(f"🖼️ Nexa adapter 初始化完成，图片临时目录：{self.temp_dir}")
+        logger.info(f"Nexa adapter initialized with temp directory: {self.temp_dir}")
     
     def __del__(self):
-        """清理临时目录"""
+        """Clean up temporary directory"""
         try:
             import shutil
             if hasattr(self, 'temp_dir') and os.path.exists(self.temp_dir):
                 shutil.rmtree(self.temp_dir)
-                logger.info(f"🗑️ 清理临时目录：{self.temp_dir}")
+                logger.info(f"Cleaned up temp directory: {self.temp_dir}")
         except:
             pass
     
     def _convert_base64_to_file(self, base64_data: str, file_extension: str = "png") -> str:
-        """将 base64 图片数据转换为本地文件路径"""
+        """Convert base64 image data to local file path"""
         try:
-            logger.info(f"🔄 开始转换 base64 图片数据...")
-            
-            # 移除 data URL 前缀（如果存在）
+            # Remove data URL prefix if present
             if base64_data.startswith('data:'):
-                # 提取文件类型
+                # Extract file type
                 if 'image/jpeg' in base64_data or 'image/jpg' in base64_data:
                     file_extension = "jpg"
                 elif 'image/png' in base64_data:
@@ -76,60 +74,58 @@ class NexaChatLLM(ChatOpenAI):
                 
                 base64_data = base64_data.split(',', 1)[1]
             
-            # 解码 base64 数据
+            # Decode base64 data
             image_data = base64.b64decode(base64_data)
             
-            # 在临时目录中创建文件
+            # Create file in temp directory
             import time
             filename = f"image_{int(time.time() * 1000)}.{file_extension}"
             file_path = os.path.join(self.temp_dir, filename)
             
-            # 写入文件
+            # Write file
             with open(file_path, 'wb') as f:
                 f.write(image_data)
             
-            logger.info(f"✅ base64 图片已转换为：{file_path} ({len(image_data)} bytes)")
+            logger.info(f"✅ Converted base64 to file: {file_path} ({len(image_data)} bytes)")
             return file_path
             
         except Exception as e:
-            logger.error(f"❌ base64 转换失败: {e}")
-            raise ValueError(f"无法转换 base64 图片数据: {e}")
+            logger.error(f"❌ Base64 conversion failed: {e}")
+            raise ValueError(f"Failed to convert base64 image: {e}")
     
     def _process_multimodal_content(self, content: Any) -> Any:
-        """处理多模态内容，将 base64 图片转换为文件路径"""
+        """Process multimodal content, converting base64 images to file paths"""
         if isinstance(content, list):
-            # 处理多模态内容列表
+            # Process multimodal content list
             processed_content = []
             for item in content:
                 if isinstance(item, dict) and item.get("type") == "image_url":
                     image_url = item["image_url"]["url"]
                     if image_url.startswith("data:"):
-                        # 转换 base64 为本地文件路径
+                        # Convert base64 to local file path
                         local_file_path = self._convert_base64_to_file(image_url)
                         processed_content.append({
                             "type": "image_url",
                             "image_url": {"url": local_file_path}
                         })
-                        logger.info(f"🔄 base64 图片已转换为本地路径：{local_file_path}")
                     else:
-                        # 已经是文件路径或 URL，直接使用
+                        # Already a file path or URL, use directly
                         processed_content.append(item)
                 else:
                     processed_content.append(item)
             return processed_content
         else:
-            # 纯文本内容
+            # Plain text content
             return content
     
     def _convert_messages_to_openai_format(self, messages: List[BaseMessage]) -> List[Dict]:
-        """转换 LangChain 消息格式为 OpenAI 格式，处理多模态内容"""
+        """Convert LangChain message format to OpenAI format, handling multimodal content"""
         formatted_messages = []
         for msg in messages:
             if isinstance(msg, SystemMessage):
-                # 保持系统消息原样，不添加增强内容
                 formatted_messages.append({"role": "system", "content": msg.content})
             elif isinstance(msg, HumanMessage):
-                # 处理多模态内容
+                # Process multimodal content
                 processed_content = self._process_multimodal_content(msg.content)
                 formatted_messages.append({"role": "user", "content": processed_content})
             elif isinstance(msg, AIMessage):
@@ -137,90 +133,49 @@ class NexaChatLLM(ChatOpenAI):
         
         return formatted_messages
     
-    def _extract_json_from_markdown(self, content: str) -> str:
-        """从 markdown 代码块中提取 JSON 内容并修复格式问题"""
-        import re
-        import json
-        
-        original_content = content.strip()
-        
-        # 尝试匹配 ```json ... ``` 格式
-        json_match = re.search(r'```json\s*(.*?)\s*```', content, re.DOTALL)
-        if json_match:
-            extracted = json_match.group(1).strip()
-            logger.info("🔧 从 markdown ```json``` 代码块中提取了 JSON 内容")
-            fixed_json = self._fix_malformed_json(extracted)
-            return fixed_json
-        
-        # 尝试匹配 ``` ... ``` 格式
-        code_match = re.search(r'```\s*(.*?)\s*```', content, re.DOTALL)
-        if code_match:
-            extracted = code_match.group(1).strip()
-            # 简单检查是否看起来像 JSON
-            if extracted.strip().startswith('{') and extracted.strip().endswith('}'):
-                logger.info("🔧 从 markdown ``` 代码块中提取了 JSON 内容")
-                fixed_json = self._fix_malformed_json(extracted)
-                return fixed_json
-        
-        # 如果没有代码块，尝试修复原始内容
-        logger.info("📝 无需从 markdown 提取，检查并修复原始 JSON")
-        fixed_json = self._fix_malformed_json(original_content)
-        return fixed_json
-    
-    def _fix_malformed_json(self, json_str: str) -> str:
-        """修复常见的 JSON 格式问题"""
-        import json
-        import re
-        
-        # 首先尝试直接解析
+    def _fix_action_names(self, json_str: str) -> str:
+        """Fix common action name errors (e.g., click_element -> click_element_by_index)"""
         try:
-            json.loads(json_str)
-            logger.info("✅ JSON 格式正确，无需修复")
+            data = json.loads(json_str)
+            
+            # Action name mapping
+            action_mappings = {
+                "click_element": "click_element_by_index",
+                "open_new_tab": "open_tab",
+                "new_tab": "open_tab",
+            }
+            
+            # Check and fix action names
+            if "action" in data and isinstance(data["action"], list):
+                for action_item in data["action"]:
+                    if isinstance(action_item, dict):
+                        for wrong_name, correct_name in action_mappings.items():
+                            if wrong_name in action_item:
+                                action_item[correct_name] = action_item.pop(wrong_name)
+                                logger.info(f"🔧 Fixed action name: {wrong_name} -> {correct_name}")
+                                return json.dumps(data, ensure_ascii=False)
+            
             return json_str
-        except json.JSONDecodeError as e:
-            logger.warning(f"⚠️ 检测到 JSON 格式问题: {e}")
             
-            # 修复常见问题：多余的逗号和结构错误
-            fixed = json_str
-            
-            # 修复模式: {"current_state": {...}}, "action": [...] -> {"current_state": {...}, "action": [...]}
-            # 使用正则表达式来精确匹配和修复结构问题
-            import re
-            pattern = r'("current_state": \{.*?\})\}, "action":'
-            replacement = r'\1, "action":'
-            
-            if re.search(pattern, fixed):
-                logger.info("🔧 修复 current_state 和 action 之间的结构错误")
-                fixed = re.sub(pattern, replacement, fixed)
-            
-            # 尝试解析修复后的 JSON
-            try:
-                json.loads(fixed)
-                logger.info("✅ JSON 修复成功")
-                return fixed
-            except json.JSONDecodeError:
-                logger.warning("❌ JSON 修复失败，返回原始内容")
-                return json_str
+        except Exception as e:
+            logger.warning(f"⚠️ Action name correction failed: {e}")
+            return json_str
     
     def _call_nexa_api(self, messages: List[BaseMessage], **kwargs) -> str:
-        """调用 Nexa API 的核心方法"""
-        # 转换消息格式
+        """Core method for calling Nexa API"""
+        # Convert message format
         formatted_messages = self._convert_messages_to_openai_format(messages)
         
-        # 准备请求载荷，使用适中温度以获得更灵活的输出
+        # Prepare request payload
         payload = {
             "model": self.nexa_model,
             "messages": formatted_messages,
-            "temperature": 0.5,  # 提高温度以增强指令遵循性
-            "max_tokens": kwargs.get("max_tokens", 2048)  # 增加最大 token 数
+            "temperature": 0.5,
+            "max_tokens": kwargs.get("max_tokens", 2048)
         }
         
-        # 调试日志
-        logger.info(f"🔍 处理前的消息数量: {len(messages)}")
-        logger.info(f"🔍 处理后的载荷: {json.dumps(payload, indent=2, ensure_ascii=False)[:1000]}...")
-        
         try:
-            # 尝试使用 chat/completions 端点
+            # Call chat/completions endpoint
             response = requests.post(
                 f"{self.nexa_base_url}/chat/completions",
                 headers={"Content-Type": "application/json"},
@@ -230,21 +185,19 @@ class NexaChatLLM(ChatOpenAI):
             response.raise_for_status()
             
             result = response.json()
-            content = result["choices"][0]["message"]["content"]
-            logger.info(f"✅ Nexa API 调用成功，返回内容长度: {len(content)}")
-            logger.info(f"📝 模型原始输出: {content[:500]}...")
+            content = result["choices"][0]["message"]["content"].strip()
+            logger.info(f"✅ Nexa API call successful, content length: {len(content)}")
             
-            # 从 markdown 代码块中提取 JSON（如果有的话）
-            processed_content = self._extract_json_from_markdown(content)
+            # Fix common action name errors
+            processed_content = self._fix_action_names(content)
+            
             return processed_content
             
         except Exception as e:
-            logger.error(f"❌ chat/completions 调用失败: {e}")
-            # 回退到 completions 端点
+            logger.error(f"❌chat/completions call failed: {e}")
+            # Fallback to completions endpoint
             try:
-                # 将消息转换为单一提示
                 prompt = self._messages_to_prompt(formatted_messages)
-                
                 payload = {
                     "model": self.nexa_model,
                     "prompt": prompt,
@@ -262,20 +215,18 @@ class NexaChatLLM(ChatOpenAI):
                 
                 result = response.json()
                 content = result["choices"][0]["text"].strip()
-                logger.info(f"✅ Nexa completions 调用成功，返回内容长度: {len(content)}")
-                logger.info(f"📝 模型原始输出 (completions): {content[:500]}...")
+                logger.info(f"Nexa completions call successful, content length: {len(content)}")
                 
-                # 从 markdown 代码块中提取 JSON（如果有的话）
-                processed_content = self._extract_json_from_markdown(content)
+                # Fix common action name errors
+                processed_content = self._fix_action_names(content)
+                
                 return processed_content
                 
             except Exception as fallback_e:
-                logger.error(f"❌ completions 回退也失败: {fallback_e}")
-                raise ValueError(
-                    f"Nexa API 调用完全失败。Chat错误: {e}, Completions错误: {fallback_e}"
-                )
+                logger.error(f"completions fallback failed: {fallback_e}")
+                raise ValueError(f"Nexa API call completely failed. Chat error: {e}, Completions error: {fallback_e}")
     
-    # 重写所有可能的调用方法
+    # Override all possible invocation methods
     
     def invoke(
         self,
@@ -285,10 +236,10 @@ class NexaChatLLM(ChatOpenAI):
         stop: Optional[List[str]] = None,
         **kwargs: Any,
     ) -> AIMessage:
-        """同步调用方法"""
-        logger.info("📞 NexaChatLLM.invoke 被调用")
+        """Synchronous invocation method"""
+        logger.info("NexaChatLLM.invoke called")
         
-        # 转换输入为消息列表
+        # Convert input to message list
         if isinstance(input, str):
             messages = [HumanMessage(content=input)]
         else:
@@ -305,16 +256,16 @@ class NexaChatLLM(ChatOpenAI):
         stop: Optional[List[str]] = None,
         **kwargs: Any,
     ) -> AIMessage:
-        """异步调用方法"""
-        logger.info(f"📞 NexaChatLLM.ainvoke 被调用，参数: {list(kwargs.keys())}")
+        """Asynchronous invocation method"""
+        logger.info(f"NexaChatLLM.ainvoke called")
         
-        # 过滤掉不支持的参数
+        # Filter out unsupported parameters
         filtered_kwargs = {k: v for k, v in kwargs.items() if k not in ['response_format']}
         
-        # 在异步环境中调用同步方法
+        # Call sync method in async context
         loop = asyncio.get_event_loop()
         
-        # 创建一个包装函数来正确传递参数
+        # Create wrapper function to pass parameters correctly
         def sync_call():
             return self.invoke(input, config, stop=stop, **filtered_kwargs)
         
@@ -327,8 +278,8 @@ class NexaChatLLM(ChatOpenAI):
         run_manager: Optional[CallbackManagerForLLMRun] = None,
         **kwargs: Any,
     ) -> ChatResult:
-        """同步生成方法"""
-        logger.info("📞 NexaChatLLM._generate 被调用")
+        """Synchronous generation method"""
+        logger.info("NexaChatLLM._generate called")
         
         content = self._call_nexa_api(messages, **kwargs)
         return ChatResult(
@@ -342,13 +293,13 @@ class NexaChatLLM(ChatOpenAI):
         run_manager: Optional[AsyncCallbackManagerForLLMRun] = None,
         **kwargs: Any,
     ) -> ChatResult:
-        """异步生成方法"""
-        logger.info(f"📞 NexaChatLLM._agenerate 被调用，参数: {list(kwargs.keys())}")
+        """Asynchronous generation method"""
+        logger.info(f"NexaChatLLM._agenerate called")
         
-        # 过滤掉不支持的参数
+        # Filter out unsupported parameters
         filtered_kwargs = {k: v for k, v in kwargs.items() if k not in ['response_format']}
         
-        # 在异步环境中调用同步方法
+        # Call sync method in async context
         loop = asyncio.get_event_loop()
         
         def sync_call():
@@ -367,8 +318,8 @@ class NexaChatLLM(ChatOpenAI):
         return_exceptions: bool = False,
         **kwargs: Any,
     ) -> List[AIMessage]:
-        """批量处理方法"""
-        logger.info(f"📞 NexaChatLLM.batch 被调用，输入数量: {len(inputs)}")
+        """Batch processing method"""
+        logger.info(f"NexaChatLLM.batch called with {len(inputs)} inputs")
         
         results = []
         for input_item in inputs:
@@ -391,8 +342,8 @@ class NexaChatLLM(ChatOpenAI):
         return_exceptions: bool = False,
         **kwargs: Any,
     ) -> List[AIMessage]:
-        """异步批量处理方法"""
-        logger.info(f"📞 NexaChatLLM.abatch 被调用，输入数量: {len(inputs)}")
+        """Asynchronous batch processing method"""
+        logger.info(f"NexaChatLLM.abatch called with {len(inputs)} inputs")
         
         tasks = []
         for input_item in inputs:
@@ -414,8 +365,8 @@ class NexaChatLLM(ChatOpenAI):
         stop: Optional[List[str]] = None,
         **kwargs: Any,
     ) -> Iterator[AIMessage]:
-        """流式处理方法（Nexa 当前不支持流式，返回完整响应）"""
-        logger.info("📞 NexaChatLLM.stream 被调用（转换为非流式）")
+        """Streaming method (Nexa doesn't support streaming, returns full response)"""
+        logger.info("NexaChatLLM.stream called (converting to non-streaming)")
         
         result = self.invoke(input, config, stop=stop, **kwargs)
         yield result
@@ -428,24 +379,24 @@ class NexaChatLLM(ChatOpenAI):
         stop: Optional[List[str]] = None,
         **kwargs: Any,
     ) -> AsyncIterator[AIMessage]:
-        """异步流式处理方法（Nexa 当前不支持流式，返回完整响应）"""
-        logger.info("📞 NexaChatLLM.astream 被调用（转换为非流式）")
+        """Asynchronous streaming method (Nexa doesn't support streaming, returns full response)"""
+        logger.info("NexaChatLLM.astream called (converting to non-streaming)")
         
         result = await self.ainvoke(input, config, stop=stop, **kwargs)
         yield result
     
     
     def _messages_to_prompt(self, messages: List[Dict[str, Any]]) -> str:
-        """将消息列表转换为单一提示字符串（用于 completions 端点）"""
+        """Convert message list to single prompt string (for completions endpoint)"""
         prompt = ""
         for msg in messages:
             if msg["role"] == "system":
                 prompt += f"System: {msg['content']}\n"
             elif msg["role"] == "user":
                 if isinstance(msg["content"], list):
-                    # 多模态内容，只提取文本部分
+                    # Multimodal content, extract text parts only
                     text_parts = [item["text"] for item in msg["content"] if item.get("type") == "text"]
-                    content = " ".join(text_parts) if text_parts else "图片描述请求"
+                    content = " ".join(text_parts) if text_parts else "Image description request"
                     prompt += f"User: {content}\n"
                 else:
                     prompt += f"User: {msg['content']}\n"
@@ -457,7 +408,7 @@ class NexaChatLLM(ChatOpenAI):
 
 def create_nexa_llm(model: str, base_url: str, temperature: float = 0.0, **kwargs) -> NexaChatLLM:
     """
-    创建 Nexa LLM 实例的工厂函数
+    Factory function to create Nexa LLM instance
     """
-    logger.info(f"🏭 创建 Nexa LLM 实例: model={model}, base_url={base_url}, temperature={temperature}")
+    logger.info(f"Creating Nexa LLM instance: model={model}, base_url={base_url}, temperature={temperature}")
     return NexaChatLLM(model=model, base_url=base_url, temperature=temperature, **kwargs)

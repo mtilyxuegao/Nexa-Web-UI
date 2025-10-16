@@ -99,7 +99,6 @@ model_names = {
         "Qwen/Qwen3-235B-A22B",
     ],
     "nexa": [
-        "NexaAI/Qwen3-VL-4B-MLX-8bit",
-        "exaAI/Qwen3-VL-4B-GGUF",
+        "NexaAI/Qwen3-VL-4B-Instruct-GGUF",
     ],
 }
